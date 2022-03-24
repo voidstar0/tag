@@ -7,7 +7,7 @@
 
 ### Mark a path
 ```sh
-$ tag mark <folder> "tag1,tag2"
+$ tag mark <path> "tag1,tag2"
 ```
 ### Search a tag
 ```sh
