@@ -21,7 +21,7 @@ fn mark_path(connection: Connection, path: &str, tags: &str) -> Result<(), Gener
 
     let absolute_path = fs::canonicalize(&dir)?.to_string_lossy().to_string();
 
-    for tag in tags.split(",") {
+    for tag in tags.split(',') {
         connection.execute(
             "INSERT OR IGNORE INTO tagged (location, tag) VALUES (?1, ?2)",
             &[&absolute_path, &tag.trim().into()],
@@ -31,7 +31,7 @@ fn mark_path(connection: Connection, path: &str, tags: &str) -> Result<(), Gener
 }
 
 fn find_path(connection: Connection, tags: &str) -> Result<(), rusqlite::Error> {
-    for tag in tags.split(",") {
+    for tag in tags.split(',') {
         let mut statement = connection.prepare("SELECT location FROM tagged WHERE tag LIKE ?")?;
 
         let paths = statement.query_map(&[&tag.trim()], |row| {
