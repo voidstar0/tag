@@ -19,6 +19,9 @@ $ tag mark <path> "tag1,tag2"
 ### Search a tag
 ```sh
 $ tag find "tag"
+
+# in current working directory
+$ tag find -c "tag"
 ```
 
 ### Remove all tags from a path
