@@ -57,7 +57,7 @@ fn mark_path(mut connection: Connection, path: &str, tags: &str) -> Result<(), G
     Ok(())
 }
 
-fn find_path(connection: Connection, tags: &str, in_cwd: bool) -> Result<(), GeneralError> {
+fn find_path(mut connection: Connection, tags: &str, in_cwd: bool) -> Result<(), GeneralError> {
     for tag in tags.split(',') {
         let mut query = String::from("SELECT location FROM tagged WHERE tag LIKE ?");
         let mut params: Vec<String> = vec![tag.trim().into()];
@@ -73,15 +73,29 @@ fn find_path(connection: Connection, tags: &str, in_cwd: bool) -> Result<(), Gen
         let mut statement = connection.prepare(&query)?;
 
         let params = rusqlite::params_from_iter(params);
-        let paths = statement.query_map(params, |row| {
+        let paths: Vec<Result<Location, rusqlite::Error>> = statement.query_map(params, |row| {
             Ok(Location {
                 location: row.get(0)?,
             })
-        })?;
+        })?.collect();
+        drop(statement);
 
+        let tx = connection.transaction()?;
         for path in paths {
-            println!("{}", path?.location);
+            if let Ok(path) = path {
+                let loc = path.location;
+                let dir = PathBuf::from(loc.clone());
+                if !dir.exists() {
+                    tx.execute(
+                        "DELETE FROM tagged WHERE location = ?1;",
+                        &[&loc],
+                    )?;
+                    continue;
+                }
+                println!("{}", loc);
+            }
         }
+        tx.commit()?;
     }
 
     Ok(())
