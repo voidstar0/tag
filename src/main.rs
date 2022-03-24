@@ -1,15 +1,19 @@
-use std::{fs, path::Path};
 use std::path::PathBuf;
-use clap::{Command};
+use std::{fs, path::Path};
+
+use clap::Command;
 use directories::BaseDirs;
-use rusqlite::{Connection};
+use rusqlite::Connection;
 
 #[derive(Debug)]
 struct Location {
     location: String,
 }
 
-fn mark_path(connection: Connection, args: (Option<&str>, Option<&str>)) -> Result<(), Box<dyn std::error::Error>> {
+fn mark_path(
+    connection: Connection,
+    args: (Option<&str>, Option<&str>),
+) -> Result<(), Box<dyn std::error::Error>> {
     match args {
         (Some(path), Some(tags)) => {
             let dir = PathBuf::from(path.trim());
@@ -17,15 +21,21 @@ fn mark_path(connection: Connection, args: (Option<&str>, Option<&str>)) -> Resu
                 panic!("Path does not exist");
             }
 
-            let absolute_path = fs::canonicalize(&dir).unwrap().to_string_lossy().to_string();
+            let absolute_path = fs::canonicalize(&dir)
+                .unwrap()
+                .to_string_lossy()
+                .to_string();
             for tag in tags.split(",") {
                 connection
-                    .execute("INSERT OR IGNORE INTO tagged (location, tag) VALUES (?1, ?2)", &[&absolute_path, &tag.trim().into()])
+                    .execute(
+                        "INSERT OR IGNORE INTO tagged (location, tag) VALUES (?1, ?2)",
+                        &[&absolute_path, &tag.trim().into()],
+                    )
                     .unwrap();
             }
             Ok(())
-        },
-        _ => panic!("Bruh moment")
+        }
+        _ => panic!("Bruh moment"),
     }
 }
 
@@ -33,11 +43,13 @@ fn find_path(connection: Connection, tags: Option<&str>) -> Result<(), Box<dyn s
     match tags {
         Some(tags) => {
             for tag in tags.split(",") {
-                let mut statement = connection
-                    .prepare("SELECT location FROM tagged WHERE tag LIKE ?")?;
+                let mut statement =
+                    connection.prepare("SELECT location FROM tagged WHERE tag LIKE ?")?;
 
                 let paths = statement.query_map(&[&tag.trim()], |row| {
-                    Ok(Location { location: row.get(0)? })
+                    Ok(Location {
+                        location: row.get(0)?,
+                    })
                 })?;
 
                 for path in paths {
@@ -45,11 +57,10 @@ fn find_path(connection: Connection, tags: Option<&str>) -> Result<(), Box<dyn s
                 }
             }
             Ok(())
-        },
-        _ => panic!("Bruh moment")
+        }
+        _ => panic!("Bruh moment"),
     }
 }
-
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut dir = PathBuf::new();
@@ -63,7 +74,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if !path.exists() {
         fs::create_dir_all(&dir.parent().unwrap()).unwrap();
     }
-    
+
     let connection = Connection::open(dir)?;
 
     connection.execute(
@@ -73,7 +84,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
              tag text not null,
              UNIQUE(location, tag)
          );",
-         [],
+        [],
     )?;
 
     let matches = clap::command!()
@@ -94,9 +105,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .get_matches();
 
     return match matches.subcommand() {
-        Some(("mark", sub_matches)) => mark_path(connection, (
-            sub_matches.value_of("PATH"),
-            sub_matches.value_of("TAGS"))
+        Some(("mark", sub_matches)) => mark_path(
+            connection,
+            (sub_matches.value_of("PATH"), sub_matches.value_of("TAGS")),
         ),
         Some(("find", sub_matches)) => find_path(connection, sub_matches.value_of("TAGS")),
         _ => unreachable!("Exhausted list of subcommands and subcommand_required prevents `None`"),
