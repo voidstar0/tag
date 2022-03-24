@@ -108,6 +108,7 @@ fn main() -> Result<(), GeneralError> {
             clap::arg!(-c --"in-cwd" [IN_CWD] "filters by paths in the current working directory"),
             clap::arg!([TAGS]),
         ]))
+        .subcommand(Command::new("tags").about("Get a list of all tags"))
         .get_matches();
 
     match matches.subcommand() {
@@ -122,6 +123,14 @@ fn main() -> Result<(), GeneralError> {
                 .value_of_t("in-cwd")
                 .unwrap_or_else(|_| sub_matches.is_present("in-cwd"));
             find_path(connection, &tags, in_cwd)?;
+        }
+        Some(("tags", _)) => {
+            let mut statement = connection.prepare("SELECT DISTINCT tag FROM tagged;")?;
+            let rows = statement.query_map([], |row| row.get::<usize, String>(0))?;
+
+            for row in rows {
+                println!("{}", row?);
+            }
         }
         _ => unreachable!("Exhausted list of subcommands and subcommand_required prevents `None`"),
     };
