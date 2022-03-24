@@ -13,7 +13,7 @@ pub struct Location {
     location: String,
 }
 
-fn mark_path(connection: Connection, path: &str, tags: &str) -> Result<(), GeneralError> {
+fn mark_path(mut connection: Connection, path: &str, tags: &str) -> Result<(), GeneralError> {
     let dir = PathBuf::from(path.trim());
     if !Path::new(&dir).exists() {
         panic!("Path does not exist");
@@ -21,12 +21,18 @@ fn mark_path(connection: Connection, path: &str, tags: &str) -> Result<(), Gener
 
     let absolute_path = fs::canonicalize(&dir)?.to_string_lossy().to_string();
 
+    // Use a transaction in-case we fail to insert a tag at some point.
+    let tx = connection.transaction()?;
+
     for tag in tags.split(',') {
-        connection.execute(
+        tx.execute(
             "INSERT OR IGNORE INTO tagged (location, tag) VALUES (?1, ?2)",
             &[&absolute_path, &tag.trim().into()],
         )?;
     }
+
+    tx.commit()?;
+
     Ok(())
 }
 
