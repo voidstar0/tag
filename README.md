@@ -15,7 +15,18 @@ $ brew install char/tap/tag
 ```sh
 $ tag mark <path> "tag1,tag2"
 ```
+
 ### Search a tag
 ```sh
 $ tag find "tag"
+```
+
+### Remove all tags from a path
+```sh
+$ tag unmark <path>
+```
+
+### Delete a tag from all paths
+```sh
+$ tag deltag <path>
 ```

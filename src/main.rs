@@ -13,6 +13,27 @@ pub struct Location {
     location: String,
 }
 
+fn unmark_path(mut connection: Connection, path: &str) -> Result<(), GeneralError> {
+    let dir = PathBuf::from(path.trim());
+    if !Path::new(&dir).exists() {
+        panic!("Path does not exist");
+    }
+
+    let absolute_path = fs::canonicalize(&dir)?.to_string_lossy().to_string();
+
+    // Use a transaction in-case we fail to insert a tag at some point.
+    let tx = connection.transaction()?;
+
+    tx.execute(
+        "DELETE FROM tagged WHERE location = ?1;",
+        &[&absolute_path],
+    )?;
+
+    tx.commit()?;
+
+    Ok(())
+}
+
 fn mark_path(mut connection: Connection, path: &str, tags: &str) -> Result<(), GeneralError> {
     let dir = PathBuf::from(path.trim());
     if !Path::new(&dir).exists() {
@@ -82,7 +103,7 @@ fn main() -> Result<(), GeneralError> {
         }
     }
 
-    let connection = Connection::open(dir)?;
+    let mut connection = Connection::open(dir)?;
 
     connection.execute(
         "CREATE TABLE IF NOT EXISTS tagged (
@@ -99,6 +120,11 @@ fn main() -> Result<(), GeneralError> {
         .subcommand_required(true)
         .arg_required_else_help(true)
         .subcommand(
+            Command::new("unmark")
+                .about("Remove all tags from a specified path")
+                .arg(clap::arg!([PATH]))
+        )
+        .subcommand(
             Command::new("mark")
                 .about("Give a path specified tags")
                 .arg(clap::arg!([PATH]))
@@ -108,6 +134,11 @@ fn main() -> Result<(), GeneralError> {
             clap::arg!(-c --"in-cwd" [IN_CWD] "filters by paths in the current working directory"),
             clap::arg!([TAGS]),
         ]))
+        .subcommand(
+            Command::new("deltag")
+                .about("Remove specified tags from all paths")
+                .arg(clap::arg!([TAGS]))
+        )
         .subcommand(Command::new("tags").about("Get a list of all tags"))
         .get_matches();
 
@@ -116,6 +147,10 @@ fn main() -> Result<(), GeneralError> {
             let path: String = sub_matches.value_of_t_or_exit("PATH");
             let tags: String = sub_matches.value_of_t_or_exit("TAGS");
             mark_path(connection, &path, &tags)?;
+        }
+        Some(("unmark", sub_matches)) => {
+            let path: String = sub_matches.value_of_t_or_exit("PATH");
+            unmark_path(connection, &path)?;
         }
         Some(("find", sub_matches)) => {
             let tags: String = sub_matches.value_of_t_or_exit("TAGS");
@@ -131,6 +166,19 @@ fn main() -> Result<(), GeneralError> {
             for row in rows {
                 println!("{}", row?);
             }
+        }
+        Some(("deltag", sub_matches)) => {
+            let tags: String = sub_matches.value_of_t_or_exit("TAGS");
+            let tx = connection.transaction()?;
+
+            for tag in tags.split(',') {
+                tx.execute(
+                    "DELETE FROM tagged WHERE tag = ?1;",
+                    &[&tag],
+                )?;
+            }
+
+            tx.commit()?;
         }
         _ => unreachable!("Exhausted list of subcommands and subcommand_required prevents `None`"),
     };
