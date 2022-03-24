@@ -82,20 +82,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .arg_required_else_help(true)
         .subcommand(
             Command::new("mark")
-                .about("Adds files to myapp")
-                .arg(clap::arg!([DIRECTORY]))
+                .about("Give a path specified tags")
+                .arg(clap::arg!([PATH]))
                 .arg(clap::arg!([TAGS])),
         )
         .subcommand(
             Command::new("find")
-                .about("Finds files & directories from tag")
+                .about("Finds a path from tags")
                 .arg(clap::arg!([TAGS])),
         )
         .get_matches();
 
     return match matches.subcommand() {
         Some(("mark", sub_matches)) => mark_path(connection, (
-            sub_matches.value_of("DIRECTORY"),
+            sub_matches.value_of("PATH"),
             sub_matches.value_of("TAGS"))
         ),
         Some(("find", sub_matches)) => find_path(connection, sub_matches.value_of("TAGS")),
