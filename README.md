@@ -3,6 +3,12 @@
 
 ![An example of how to use tag](/assets/screenshot.png)
 
+## Installation
+```sh
+$ brew tap char/tap
+$ brew install char/tap/tag
+```
+
 ## Usage
 
 ### Mark a path
