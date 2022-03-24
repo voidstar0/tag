@@ -36,11 +36,23 @@ fn mark_path(mut connection: Connection, path: &str, tags: &str) -> Result<(), G
     Ok(())
 }
 
-fn find_path(connection: Connection, tags: &str) -> Result<(), rusqlite::Error> {
+fn find_path(connection: Connection, tags: &str, in_cwd: bool) -> Result<(), GeneralError> {
     for tag in tags.split(',') {
-        let mut statement = connection.prepare("SELECT location FROM tagged WHERE tag LIKE ?")?;
+        let mut query = String::from("SELECT location FROM tagged WHERE tag LIKE ?");
+        let mut params: Vec<String> = vec![tag.trim().into()];
 
-        let paths = statement.query_map(&[&tag.trim()], |row| {
+        if in_cwd {
+            let cwd = std::env::current_dir().and_then(fs::canonicalize)?;
+            let cwd = cwd.to_str().expect("CWD is not a valid utf8 string");
+
+            query.push_str(" AND location LIKE ?");
+            params.push(format!("{cwd}%"));
+        }
+
+        let mut statement = connection.prepare(&query)?;
+
+        let params = rusqlite::params_from_iter(params);
+        let paths = statement.query_map(params, |row| {
             Ok(Location {
                 location: row.get(0)?,
             })
@@ -92,11 +104,10 @@ fn main() -> Result<(), GeneralError> {
                 .arg(clap::arg!([PATH]))
                 .arg(clap::arg!([TAGS])),
         )
-        .subcommand(
-            Command::new("find")
-                .about("Finds a path from tags")
-                .arg(clap::arg!([TAGS])),
-        )
+        .subcommand(Command::new("find").about("Finds a path from tags").args(&[
+            clap::arg!(-c --"in-cwd" [IN_CWD] "filters by paths in the current working directory"),
+            clap::arg!([TAGS]),
+        ]))
         .get_matches();
 
     match matches.subcommand() {
@@ -107,7 +118,10 @@ fn main() -> Result<(), GeneralError> {
         }
         Some(("find", sub_matches)) => {
             let tags: String = sub_matches.value_of_t_or_exit("TAGS");
-            find_path(connection, &tags)?;
+            let in_cwd: bool = sub_matches
+                .value_of_t("in-cwd")
+                .unwrap_or_else(|_| sub_matches.is_present("in-cwd"));
+            find_path(connection, &tags, in_cwd)?;
         }
         _ => unreachable!("Exhausted list of subcommands and subcommand_required prevents `None`"),
     };
