@@ -24,10 +24,7 @@ fn unmark_path(mut connection: Connection, path: &str) -> Result<(), GeneralErro
     // Use a transaction in-case we fail to insert a tag at some point.
     let tx = connection.transaction()?;
 
-    tx.execute(
-        "DELETE FROM tagged WHERE location = ?1;",
-        &[&absolute_path],
-    )?;
+    tx.execute("DELETE FROM tagged WHERE location = ?1;", &[&absolute_path])?;
 
     tx.commit()?;
 
@@ -70,31 +67,27 @@ fn find_path(mut connection: Connection, tags: &str, in_cwd: bool) -> Result<(),
             params.push(format!("{cwd}%"));
         }
 
-        let mut statement = connection.prepare(&query)?;
-
-        let params = rusqlite::params_from_iter(params);
-        let paths: Vec<Result<Location, rusqlite::Error>> = statement.query_map(params, |row| {
-            Ok(Location {
-                location: row.get(0)?,
-            })
-        })?.collect();
-        drop(statement);
-
         let tx = connection.transaction()?;
-        for path in paths {
-            if let Ok(path) = path {
+        tx.prepare(&query)?
+            .query_map(rusqlite::params_from_iter(params), |row| {
+                Ok(Location {
+                    location: row.get(0)?,
+                })
+            })?
+            .flatten()
+            .try_for_each(|path| -> Result<(), GeneralError> {
                 let loc = path.location;
-                let dir = PathBuf::from(loc.clone());
+                let dir = Path::new(&loc);
+
                 if !dir.exists() {
-                    tx.execute(
-                        "DELETE FROM tagged WHERE location = ?1;",
-                        &[&loc],
-                    )?;
-                    continue;
+                    tx.execute("DELETE FROM tagged WHERE location = ?1;", [&loc])?;
+                } else {
+                    println!("{}", loc);
                 }
-                println!("{}", loc);
-            }
-        }
+
+                Ok(())
+            })?;
+
         tx.commit()?;
     }
 
@@ -136,7 +129,7 @@ fn main() -> Result<(), GeneralError> {
         .subcommand(
             Command::new("unmark")
                 .about("Remove all tags from a specified path")
-                .arg(clap::arg!([PATH]))
+                .arg(clap::arg!([PATH])),
         )
         .subcommand(
             Command::new("mark")
@@ -151,7 +144,7 @@ fn main() -> Result<(), GeneralError> {
         .subcommand(
             Command::new("deltag")
                 .about("Remove specified tags from all paths")
-                .arg(clap::arg!([TAGS]))
+                .arg(clap::arg!([TAGS])),
         )
         .subcommand(Command::new("tags").about("Get a list of all tags"))
         .get_matches();
@@ -186,10 +179,7 @@ fn main() -> Result<(), GeneralError> {
             let tx = connection.transaction()?;
 
             for tag in tags.split(',') {
-                tx.execute(
-                    "DELETE FROM tagged WHERE tag = ?1;",
-                    &[&tag],
-                )?;
+                tx.execute("DELETE FROM tagged WHERE tag = ?1;", &[&tag])?;
             }
 
             tx.commit()?;
