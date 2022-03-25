@@ -31,5 +31,5 @@ $ tag unmark <path>
 
 ### Delete a tag from all paths
 ```sh
-$ tag deltag <path>
+$ tag deltag <tag>
 ```
